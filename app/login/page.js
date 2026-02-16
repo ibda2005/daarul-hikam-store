@@ -59,30 +59,30 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-xl shadow-lg border-t-4 border-green-700 w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white p-8 rounded-xl shadow-2xl border-t-4 border-green-700 w-full max-w-md">
         <div className="text-center mb-6">
-          <img src="/logo.jpeg" alt="Logo Daarul Hikam" className="w-20 h-20 mx-auto mb-3 rounded-full object-cover" />
-          <h2 className="text-2xl font-bold text-green-800">
+          <img src="/logo.jpeg" alt="Logo Daarul Hikam" className="w-20 h-20 mx-auto mb-3 rounded-full object-cover border-2 border-green-600" />
+          <h2 className="text-2xl font-black text-green-800">
             {isLogin ? 'Login Pemesanan' : 'Daftar Akun Baru'}
           </h2>
-          <p className="text-sm text-gray-900 mt-1">Pondok Pesantren Daarul Hikam</p>
+          <p className="text-sm font-semibold text-gray-600 mt-1">Pondok Pesantren Daarul Hikam</p>
         </div>
 
-        <form onSubmit={handleAuth} className="space-y-4">
+        <form onSubmit={handleAuth} className="space-y-5">
           {!isLogin && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-900">Nama Lengkap</label>
-                <input type="text" required value={nama} onChange={(e) => setNama(e.target.value)} className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-green-500 focus:border-green-500" placeholder="Contoh: Ahmad Abdullah" />
+                <label className="block text-sm font-bold text-black mb-1">Nama Lengkap</label>
+                <input type="text" required value={nama} onChange={(e) => setNama(e.target.value)} className="w-full px-4 py-3 bg-gray-50 text-black font-semibold border border-gray-400 rounded-lg focus:ring-green-600 focus:border-green-600 placeholder-gray-500" placeholder="Contoh: Ahmad Abdullah" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-900">Laqob (Panggilan)</label>
-                <input type="text" required value={laqob} onChange={(e) => setLaqob(e.target.value)} className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-green-500 focus:border-green-500" placeholder="Contoh: Kang Mamat" />
+                <label className="block text-sm font-bold text-black mb-1">Laqob (Panggilan)</label>
+                <input type="text" required value={laqob} onChange={(e) => setLaqob(e.target.value)} className="w-full px-4 py-3 bg-gray-50 text-black font-semibold border border-gray-400 rounded-lg focus:ring-green-600 focus:border-green-600 placeholder-gray-500" placeholder="Contoh: Kang Mamat" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-900">Tingkat</label>
-                <select value={tingkat} onChange={(e) => setTingkat(e.target.value)} className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-green-500 focus:border-green-500">
+                <label className="block text-sm font-bold text-black mb-1">Tingkat</label>
+                <select value={tingkat} onChange={(e) => setTingkat(e.target.value)} className="w-full px-4 py-3 bg-gray-50 text-black font-semibold border border-gray-400 rounded-lg focus:ring-green-600 focus:border-green-600">
                   <option value="1">Tingkat 1</option>
                   <option value="2">Tingkat 2</option>
                   <option value="3">Tingkat 3</option>
@@ -93,23 +93,23 @@ export default function Login() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-900">Email</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-green-500 focus:border-green-500" placeholder="email@contoh.com" />
+            <label className="block text-sm font-bold text-black mb-1">Email</label>
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 bg-gray-50 text-black font-semibold border border-gray-400 rounded-lg focus:ring-green-600 focus:border-green-600 placeholder-gray-500" placeholder="email@contoh.com" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-900">Password</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 w-full px-4 py-2 border rounded-lg focus:ring-green-500 focus:border-green-500" placeholder="Minimal 6 karakter" />
+            <label className="block text-sm font-bold text-black mb-1">Password</label>
+            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 bg-gray-50 text-black font-semibold border border-gray-400 rounded-lg focus:ring-green-600 focus:border-green-600 placeholder-gray-500" placeholder="Minimal 6 karakter" />
           </div>
 
-          <button type="submit" disabled={loading} className="w-full bg-green-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-800 transition disabled:opacity-50">
+          <button type="submit" disabled={loading} className="w-full bg-green-700 text-white font-black py-3 px-4 rounded-lg hover:bg-green-800 transition shadow-lg disabled:opacity-50 mt-4">
             {loading ? 'Memproses...' : (isLogin ? 'Masuk' : 'Daftar Sekarang')}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-600">
+        <p className="mt-8 text-center text-sm font-semibold text-gray-700">
           {isLogin ? "Belum punya akun?" : "Sudah punya akun?"}{' '}
-          <button onClick={() => setIsLogin(!isLogin)} className="text-yellow-600 font-bold hover:underline">
+          <button onClick={() => setIsLogin(!isLogin)} className="text-yellow-600 font-black hover:underline">
             {isLogin ? 'Daftar di sini' : 'Login di sini'}
           </button>
         </p>
