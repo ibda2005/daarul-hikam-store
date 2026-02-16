@@ -80,7 +80,7 @@ export default function Dashboard() {
     cetakNota(dataUntukPDF, keranjang, totalHarga);
     
     // 4. Redirect ke WhatsApp Admin
-    const noWaAdmin = "6281234567890"; // TODO: Ganti dengan nomor WhatsApp Admin yang asli
+    const noWaAdmin = "6285289031817"; // TODO: Ganti dengan nomor WhatsApp Admin yang asli
     const pesan = `Assalamu'alaikum Admin. Saya *${userData.nama_lengkap}* (Laqob: ${userData.laqob}, Tingkat ${userData.tingkat}) telah memesan kitab dengan total *Rp ${totalHarga.toLocaleString('id-ID')}*. Berikut saya lampirkan Nota PDF pemesanan saya.`;
     const waLink = `https://wa.me/${noWaAdmin}?text=${encodeURIComponent(pesan)}`;
     
