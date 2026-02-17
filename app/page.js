@@ -20,58 +20,57 @@ export default function Dashboard() {
       } else {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         setUserData(profile);
-        fetchKitab();
+        fetchKitab(profile.tipe_santri); // Bawa data status santri
         fetchPesananSaya(session.user.id);
       }
     }
     checkUser();
   }, [router]);
 
-  async function fetchKitab() {
+  // LOGIKA PEMBATASAN KITAB
+  async function fetchKitab(tipeSantri) {
     const { data } = await supabase.from('kitab').select('*').order('id', { ascending: true });
-    if (data) setDaftarKitab(data);
+    
+    if (data) {
+      if (tipeSantri === 'Pasaran') {
+        // Jika Pasaran, HANYA TAMPILKAN kitab yang khusus_muqim nya false / kosong
+        const kitabBebas = data.filter(k => k.khusus_muqim === false || k.khusus_muqim === null);
+        setDaftarKitab(kitabBebas);
+      } else {
+        // Jika Muqim, tampilkan semua
+        setDaftarKitab(data);
+      }
+    }
   }
 
-  // Mengambil Riwayat Pesanan Santri
   async function fetchPesananSaya(userId) {
     const { data } = await supabase.from('pesanan').select('*').eq('user_id', userId).order('tanggal', { ascending: false });
     if (data) setPesananSaya(data);
     setLoading(false);
   }
 
-  // ---- LOGIKA KERANJANG ----
   const tambahKeKeranjang = (kitab) => {
     const ada = keranjang.find((item) => item.id === kitab.id);
-    if (ada) {
-      setKeranjang(keranjang.map(item => item.id === kitab.id ? { ...item, jumlah: item.jumlah + 1 } : item));
-    } else {
-      setKeranjang([...keranjang, { ...kitab, jumlah: 1 }]);
-    }
+    if (ada) setKeranjang(keranjang.map(item => item.id === kitab.id ? { ...item, jumlah: item.jumlah + 1 } : item));
+    else setKeranjang([...keranjang, { ...kitab, jumlah: 1 }]);
   };
 
   const kurangiKeranjang = (id) => {
     const item = keranjang.find((i) => i.id === id);
-    if (item.jumlah > 1) {
-      setKeranjang(keranjang.map(i => i.id === id ? { ...i, jumlah: i.jumlah - 1 } : i));
-    } else {
-      setKeranjang(keranjang.filter(i => i.id !== id));
-    }
+    if (item.jumlah > 1) setKeranjang(keranjang.map(i => i.id === id ? { ...i, jumlah: i.jumlah - 1 } : i));
+    else setKeranjang(keranjang.filter(i => i.id !== id));
   };
 
   const kosongkanKeranjang = () => {
-    if (confirm("Yakin ingin membatalkan semua pilihan kitab di keranjang?")) {
-      setKeranjang([]);
-    }
+    if (confirm("Yakin ingin membatalkan semua pilihan kitab di keranjang?")) setKeranjang([]);
   };
 
   const totalHarga = keranjang.reduce((total, item) => total + (item.harga * item.jumlah), 0);
 
-  // ---- LOGIKA CHECKOUT ----
   const prosesPesanan = async () => {
     if (keranjang.length === 0) return alert("Pilih kitab terlebih dahulu!");
     if (!confirm("Apakah Anda sudah yakin dengan pesanan ini?")) return;
     
-    // 1. Simpan ke database
     const { error } = await supabase.from('pesanan').insert([{
       user_id: userData.id,
       total_harga: totalHarga,
@@ -81,30 +80,21 @@ export default function Dashboard() {
 
     if (error) return alert("Terjadi kesalahan: " + error.message);
 
-    // 2. Refresh Riwayat Pesanan
     fetchPesananSaya(userData.id);
-    
-    // 3. Notifikasi yang Jelas untuk Klien (Tanpa Auto-Download)
-    alert("✅ Pesanan berhasil dibuat!\n\nNota pemesanan sudah masuk ke sistem Admin dan riwayat akun Anda. Silakan kabari Admin via WhatsApp untuk konfirmasi pembayaran.");
+    alert("✅ Pesanan berhasil dibuat!\n\nNota pemesanan sudah masuk ke sistem Admin. Silakan kabari Admin via WhatsApp.");
 
-    // 4. Buka WhatsApp
-    const noWaAdmin = "6281234567890"; // TODO: GANTI DENGAN NOMOR WA ASLI
-    const pesan = `Assalamu'alaikum Admin. Saya *${userData.nama_lengkap}* (Laqob: ${userData.laqob}) baru saja membuat pesanan kitab dengan total *Rp ${totalHarga.toLocaleString('id-ID')}*. Mohon dicek di sistem ya.`;
+    const noWaAdmin = "6281234567890"; // GANTI NOMOR WA ASLI
+    const pesan = `Assalamu'alaikum Admin. Saya *${userData.nama_lengkap}* (Santri ${userData.tipe_santri || 'Muqim'}) baru saja memesan kitab total *Rp ${totalHarga.toLocaleString('id-ID')}*. Mohon dicek.`;
     const waLink = `https://wa.me/${noWaAdmin}?text=${encodeURIComponent(pesan)}`;
     
     window.open(waLink, '_blank');
-    setKeranjang([]); // Kosongkan keranjang setelah berhasil
+    setKeranjang([]); 
   };
 
-  // ---- LOGIKA RIWAYAT PESANAN (BATALKAN & CETAK NOTA) ----
   const batalkanPesanan = async (pesananId) => {
-    if (!confirm("🚨 PENTING: Apakah Anda yakin ingin membatalkan pesanan ini? Aksi ini tidak bisa dikembalikan.")) return;
-
+    if (!confirm("🚨 PENTING: Apakah yakin ingin membatalkan pesanan ini?")) return;
     const { error } = await supabase.from('pesanan').delete().eq('id', pesananId);
-    
-    if (error) {
-      alert("Gagal membatalkan pesanan: " + error.message);
-    } else {
+    if (!error) {
       alert("Pesanan berhasil dibatalkan.");
       fetchPesananSaya(userData.id);
     }
@@ -113,7 +103,7 @@ export default function Dashboard() {
   const handleCetakNota = (pesanan, aksi) => {
     if (!pesanan.detail_pesanan) return alert("Detail kitab tidak ditemukan.");
     const dataUser = { nama: userData.nama_lengkap, laqob: userData.laqob, tingkat: userData.tingkat };
-    cetakNota(dataUser, pesanan.detail_pesanan, pesanan.total_harga, aksi); // aksi bisa 'view' atau 'download'
+    cetakNota(dataUser, pesanan.detail_pesanan, pesanan.total_harga, aksi);
   };
 
   const handleLogout = async () => {
@@ -125,19 +115,22 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12">
-      {/* HEADER */}
       <header className="bg-green-700 text-white p-6 shadow-md flex flex-col items-center relative">
-        <button onClick={handleLogout} className="absolute top-4 right-4 bg-red-600 px-4 py-2 rounded text-sm hover:bg-red-700 transition font-bold">Keluar (Logout)</button>
+        <button onClick={handleLogout} className="absolute top-4 right-4 bg-red-600 px-4 py-2 rounded text-sm hover:bg-red-700 transition font-bold">Keluar</button>
         <img src="/logo.jpeg" alt="Logo Daarul Hikam" className="w-24 h-24 mb-4 bg-white rounded-full p-1 object-cover" />
         <h1 className="text-3xl font-bold text-center">Pemesanan Kitab Daarul Hikam</h1>
-        <p className="mt-2 text-green-100 font-medium">Ahlan wa Sahlan, {userData?.nama_lengkap} ({userData?.laqob})</p>
+        
+        {/* TAMPILKAN STATUS SANTRI DI HEADER */}
+        <div className="mt-3 bg-green-800 px-4 py-1.5 rounded-full border border-green-500 shadow-sm">
+          <p className="text-green-100 font-medium text-sm">
+            Ahlan wa Sahlan, <span className="font-bold text-white">{userData?.nama_lengkap}</span> 
+            <span className="text-yellow-400 font-bold ml-1">({userData?.tipe_santri || 'Muqim'})</span>
+          </p>
+        </div>
       </header>
 
       <div className="container mx-auto p-4 md:p-6 flex flex-col gap-8">
-        
-        {/* BAGIAN ATAS: KATALOG & KERANJANG */}
         <div className="flex flex-col md:flex-row gap-8">
-          {/* Katalog */}
           <div className="md:w-2/3">
             <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b-2 border-green-500 pb-2">Daftar Harga Kitab</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -150,10 +143,17 @@ export default function Dashboard() {
                   <button onClick={() => tambahKeKeranjang(kitab)} className="bg-green-600 text-white w-10 h-10 flex items-center justify-center rounded-full hover:bg-green-700 transition font-bold text-xl shadow">+</button>
                 </div>
               ))}
+              
+              {/* Info jika pasaran login */}
+              {userData?.tipe_santri === 'Pasaran' && (
+                <div className="col-span-full mt-4 bg-blue-50 text-blue-800 p-3 rounded-lg text-sm font-semibold border border-blue-200">
+                  ℹ️ Beberapa kitab khusus santri Muqim disembunyikan dari katalog Anda.
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Keranjang */}
+          {/* SISA KODE KERANJANG & RIWAYAT (Sama persis seperti sebelumnya) */}
           <div className="md:w-1/3 bg-white p-6 rounded-lg shadow h-fit border-t-4 border-green-700 sticky top-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Keranjang Saya</h2>
             {keranjang.length === 0 ? <p className="text-gray-500 italic font-medium">Belum ada kitab dipilih.</p> : (
@@ -170,81 +170,33 @@ export default function Dashboard() {
                 ))}
               </div>
             )}
-            
-            <div className="flex justify-between font-black text-lg mb-4 text-gray-800 border-t pt-4">
-              <span>Total:</span>
-              <span className="text-green-700">Rp {totalHarga.toLocaleString('id-ID')}</span>
-            </div>
-
-            {keranjang.length > 0 && (
-              <button onClick={kosongkanKeranjang} className="w-full text-red-600 font-bold text-sm mb-4 hover:underline">
-                🗑️ Batalkan & Kosongkan Keranjang
-              </button>
-            )}
-
-            <button onClick={prosesPesanan} className="w-full bg-yellow-500 text-green-900 font-black py-3 rounded-lg hover:bg-yellow-400 transition shadow-md">
-              Proses Pesanan & Chat Admin
-            </button>
+            <div className="flex justify-between font-black text-lg mb-4 text-gray-800 border-t pt-4"><span>Total:</span><span className="text-green-700">Rp {totalHarga.toLocaleString('id-ID')}</span></div>
+            {keranjang.length > 0 && <button onClick={kosongkanKeranjang} className="w-full text-red-600 font-bold text-sm mb-4 hover:underline">🗑️ Batalkan & Kosongkan Keranjang</button>}
+            <button onClick={prosesPesanan} className="w-full bg-yellow-500 text-green-900 font-black py-3 rounded-lg hover:bg-yellow-400 transition shadow-md">Proses Pesanan & Chat Admin</button>
           </div>
         </div>
 
-        {/* BAGIAN BAWAH: RIWAYAT PESANAN */}
         <div className="bg-white p-6 rounded-lg shadow border-t-4 border-blue-600 mt-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b-2 border-blue-500 pb-2">Riwayat Pesanan Saya</h2>
-          
-          {pesananSaya.length === 0 ? (
-            <p className="text-gray-500 italic">Anda belum memiliki riwayat pesanan.</p>
-          ) : (
+          {pesananSaya.length === 0 ? <p className="text-gray-500 italic">Anda belum memiliki riwayat pesanan.</p> : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {pesananSaya.map((p) => {
-                const waktuPesan = new Date(p.tanggal);
-                const sekarang = new Date();
-                const selisihJam = (sekarang - waktuPesan) / (1000 * 60 * 60);
-                
-                // Syarat batal: Status masih "Belum Lunas" DAN belum lewat 24 jam (1 hari)
+                const selisihJam = (new Date() - new Date(p.tanggal)) / (1000 * 60 * 60);
                 const bisaDibatalkan = selisihJam < 24 && p.status_pembayaran === 'Belum Lunas';
-
                 return (
                   <div key={p.id} className="border border-gray-200 p-4 rounded-lg flex flex-col justify-between hover:shadow-md transition">
                     <div>
-                      <div className="text-xs text-gray-500 font-semibold mb-2">
-                        {waktuPesan.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute:'2-digit' })}
-                      </div>
+                      <div className="text-xs text-gray-500 font-semibold mb-2">{new Date(p.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute:'2-digit' })}</div>
                       <div className="font-bold text-gray-800 mb-1">Total: Rp {p.total_harga.toLocaleString('id-ID')}</div>
-                      
-                      {/* Status Pembayaran */}
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-bold mb-3
-                        ${p.status_pembayaran === 'Lunas' ? 'bg-green-100 text-green-800' : 
-                          p.status_pembayaran === 'Cicilan' ? 'bg-yellow-100 text-yellow-800' : 
-                          'bg-red-100 text-red-800'}`}>
-                        Status: {p.status_pembayaran}
-                      </span>
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-bold mb-3 ${p.status_pembayaran === 'Lunas' ? 'bg-green-100 text-green-800' : p.status_pembayaran === 'Cicilan' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>Status: {p.status_pembayaran}</span>
                     </div>
-
                     <div className="flex flex-col gap-2 mt-2 border-t pt-3">
-                      {/* Tombol Opsi Nota */}
                       <div className="flex gap-2">
-                        <button onClick={() => handleCetakNota(p, 'view')} className="flex-1 bg-gray-100 text-gray-800 text-xs font-bold py-2 rounded border border-gray-300 hover:bg-gray-200 transition">
-                          👁️ Lihat Nota
-                        </button>
-                        <button onClick={() => handleCetakNota(p, 'download')} className="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded hover:bg-green-700 transition">
-                          ⬇️ Download
-                        </button>
+                        <button onClick={() => handleCetakNota(p, 'view')} className="flex-1 bg-gray-100 text-gray-800 text-xs font-bold py-2 rounded border border-gray-300 hover:bg-gray-200 transition">👁️ Lihat Nota</button>
+                        <button onClick={() => handleCetakNota(p, 'download')} className="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded hover:bg-green-700 transition">⬇️ Download</button>
                       </div>
-
-                      {/* Tombol Batal (< 24 Jam) */}
-                      {bisaDibatalkan && (
-                        <button onClick={() => batalkanPesanan(p.id)} className="w-full text-red-600 text-xs font-bold py-2 rounded border border-red-200 hover:bg-red-50 transition mt-1">
-                          ❌ Batalkan Pesanan
-                        </button>
-                      )}
-                      
-                      {/* Info jika sudah tidak bisa dibatalkan */}
-                      {!bisaDibatalkan && p.status_pembayaran === 'Belum Lunas' && (
-                        <p className="text-[10px] text-gray-400 text-center italic mt-1">
-                          Lewat dari 24 jam. Hubungi admin untuk membatalkan.
-                        </p>
-                      )}
+                      {bisaDibatalkan && <button onClick={() => batalkanPesanan(p.id)} className="w-full text-red-600 text-xs font-bold py-2 rounded border border-red-200 hover:bg-red-50 transition mt-1">❌ Batalkan Pesanan</button>}
+                      {!bisaDibatalkan && p.status_pembayaran === 'Belum Lunas' && <p className="text-[10px] text-gray-400 text-center italic mt-1">Lewat dari 24 jam. Hubungi admin untuk membatalkan.</p>}
                     </div>
                   </div>
                 )
@@ -252,7 +204,6 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
