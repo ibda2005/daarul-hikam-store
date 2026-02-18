@@ -11,6 +11,10 @@ export default function Dashboard() {
   const [pesananSaya, setPesananSaya] = useState([]);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // STATE BARU UNTUK KATA KUNCI PENCARIAN
+  const [kataKunci, setKataKunci] = useState(''); 
+  
   const router = useRouter();
 
   useEffect(() => {
@@ -74,7 +78,6 @@ export default function Dashboard() {
 
   const totalHarga = keranjang.reduce((total, item) => total + (item.harga * item.jumlah), 0);
 
-  // ---- LOGIKA CHECKOUT & PILIH ADMIN WA ----
   const prosesPesanan = async () => {
     if (keranjang.length === 0) return Swal.fire('Kosong!', 'Pilih kitab terlebih dahulu!', 'warning');
     
@@ -91,7 +94,6 @@ export default function Dashboard() {
 
     if (!konfirmasi.isConfirmed) return;
     
-    // Simpan ke database
     const { error } = await supabase.from('pesanan').insert([{
       user_id: userData.id,
       total_harga: totalHarga,
@@ -103,25 +105,22 @@ export default function Dashboard() {
 
     fetchPesananSaya(userData.id);
     
-   // TAMPILKAN POP-UP PILIH ADMIN
     Swal.fire({
       title: 'Pesanan Berhasil! 🎉',
       text: 'Nota sudah masuk sistem. Pilih Admin yang ingin Anda hubungi:',
       icon: 'success',
       showDenyButton: true,
       showCancelButton: true,
-      confirmButtonColor: '#25D366', // Warna Hijau WA Terang
-      denyButtonColor: '#128C7E',    // Warna Hijau WA Gelap
-      cancelButtonColor: '#6b7280',  // Abu-abu
+      confirmButtonColor: '#25D366', 
+      denyButtonColor: '#128C7E',    
+      cancelButtonColor: '#6b7280',  
       confirmButtonText: '💬 Admin 1 (Bakul T3)',
       denyButtonText: '💬 Admin 2 (Joy T2)',
       cancelButtonText: 'Nanti Saja'
     }).then((result) => {
-      
       let noWaPilihan = "";
-      let namaAdmin = ""; // <--- SOLUSINYA: Kita daftarkan variabelnya di sini
+      let namaAdmin = ""; 
       
-      // CEK ADMIN MANA YANG DIPILIH
       if (result.isConfirmed) {
         noWaPilihan = "6285289031817"; 
         namaAdmin = "Bakul T3";
@@ -130,19 +129,15 @@ export default function Dashboard() {
         namaAdmin = "Joy T2";
       }
 
-      // JIKA MEMILIH ADMIN 1 ATAU 2 (BUKAN 'NANTI SAJA')
       if (noWaPilihan !== "") {
-        // Saya tambahkan variabel namaAdmin ke dalam teks sapaan agar otomatis menyebut nama Admin-nya!
         const pesan = `Assalamu'alaikum Admin ${namaAdmin}. Saya *${userData.nama_lengkap}* (Santri ${userData.tipe_santri || 'Muqim'}) baru saja memesan kitab dengan total *Rp ${totalHarga.toLocaleString('id-ID')}*. Mohon dicek di sistem ya.`;
-        
         const waLink = `https://wa.me/${noWaPilihan}?text=${encodeURIComponent(pesan)}`;
         window.open(waLink, '_blank');
       }
       
-      // Kosongkan keranjang setelah selesai
       setKeranjang([]); 
     });
-    };
+  };
 
   const batalkanPesanan = async (pesananId) => {
     const res = await Swal.fire({
@@ -184,6 +179,11 @@ export default function Dashboard() {
     }
   };
 
+  // LOGIKA PENCARIAN (FILTER) OTOMATIS
+  const kitabYangTampil = daftarKitab.filter((kitab) => 
+    kitab.nama_kitab.toLowerCase().includes(kataKunci.toLowerCase())
+  );
+
   if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-green-700">Memuat data...</div>;
 
   return (
@@ -196,7 +196,7 @@ export default function Dashboard() {
         <p className="mt-2 text-green-100 font-medium">Kp.Cibeureum Pasir Ds.Sukamekar Kec.Sukaraja Kab.Sukabumi</p>
         <div className="mt-3 bg-green-800 px-4 py-1.5 rounded-full border border-green-500 shadow-sm">
           <p className="text-green-100 font-medium text-sm">
-            Ahlan wa Sahlan, <span className="font-bold text-white">{userData?.nama_lengkap}({userData?.laqob})</span> 
+            Ahlan wa Sahlan, <span className="font-bold text-white">{userData?.nama_lengkap} ({userData?.laqob})</span> 
             <span className="text-yellow-400 font-bold ml-1">({userData?.tipe_santri || 'Muqim'})</span>
           </p>
         </div>
@@ -209,6 +209,17 @@ export default function Dashboard() {
           <div className="md:w-2/3">
             <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b-2 border-green-500 pb-2">Daftar Harga Kitab</h2>
             
+            {/* KOTAK PENCARIAN (SEARCH BAR) BARU */}
+            <div className="mb-6">
+              <input 
+                type="text" 
+                placeholder="🔍 Cari nama kitab di sini..." 
+                value={kataKunci}
+                onChange={(e) => setKataKunci(e.target.value)}
+                className="w-full px-4 py-3 bg-white text-black font-semibold border-2 border-green-200 rounded-lg focus:ring-green-600 focus:border-green-600 shadow-sm transition"
+              />
+            </div>
+
             {userData?.tipe_santri === 'Pasaran' && (
               <div className="mb-4 bg-blue-50 text-blue-800 p-3 rounded-lg text-sm font-semibold border border-blue-200">
                 ℹ️ Anda login sebagai Santri Pasaran. Menampilkan daftar kitab yang diizinkan untuk Anda.
@@ -216,10 +227,10 @@ export default function Dashboard() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {daftarKitab.length === 0 ? (
-                 <p className="text-gray-500 italic col-span-2">Belum ada kitab yang tersedia.</p>
+              {kitabYangTampil.length === 0 ? (
+                 <p className="text-gray-500 italic col-span-2">Kitab tidak ditemukan. Coba kata kunci lain.</p>
               ) : (
-                daftarKitab.map((kitab) => (
+                kitabYangTampil.map((kitab) => (
                   <div key={kitab.id} className="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500 flex justify-between items-center hover:shadow-md transition">
                     <div>
                       <h3 className="font-bold text-gray-800">{kitab.nama_kitab}</h3>
