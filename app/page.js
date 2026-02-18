@@ -103,7 +103,7 @@ export default function Dashboard() {
 
     fetchPesananSaya(userData.id);
     
-    // TAMPILKAN POP-UP PILIH ADMIN
+   // TAMPILKAN POP-UP PILIH ADMIN
     Swal.fire({
       title: 'Pesanan Berhasil! 🎉',
       text: 'Nota sudah masuk sistem. Pilih Admin yang ingin Anda hubungi:',
@@ -113,32 +113,36 @@ export default function Dashboard() {
       confirmButtonColor: '#25D366', // Warna Hijau WA Terang
       denyButtonColor: '#128C7E',    // Warna Hijau WA Gelap
       cancelButtonColor: '#6b7280',  // Abu-abu
-      confirmButtonText: '💬 Admin 1',
-      denyButtonText: '💬 Admin 2',
+      confirmButtonText: '💬 Admin 1 (Bakul T3)',
+      denyButtonText: '💬 Admin 2 (Joy T2)',
       cancelButtonText: 'Nanti Saja'
     }).then((result) => {
+      
       let noWaPilihan = "";
+      let namaAdmin = ""; // <--- SOLUSINYA: Kita daftarkan variabelnya di sini
       
       // CEK ADMIN MANA YANG DIPILIH
       if (result.isConfirmed) {
-        noWaPilihan = "6285289031817"; // <--- GANTI NOMOR WA ADMIN 1 DI SINI
-        namaAdmin = "Bakul T3"
+        noWaPilihan = "6285289031817"; 
+        namaAdmin = "Bakul T3";
       } else if (result.isDenied) {
-        noWaPilihan = "6285714251830"; // <--- GANTI NOMOR WA ADMIN 2 DI SINI
-        namaAdmin = "Joy T2"
+        noWaPilihan = "6285714251830"; 
+        namaAdmin = "Joy T2";
       }
 
       // JIKA MEMILIH ADMIN 1 ATAU 2 (BUKAN 'NANTI SAJA')
       if (noWaPilihan !== "") {
-        const pesan = `Assalamu'alaikum Admin. Saya *${userData.nama_lengkap}* (Santri ${userData.tipe_santri || 'Muqim'}) baru saja memesan kitab dengan total *Rp ${totalHarga.toLocaleString('id-ID')}*. Mohon dicek di sistem ya.`;
-        const waLink = `https://wa.me/${noWaPilihan}?text=${encodeURIComponent(pesan)}`,nama = namaAdmin;
+        // Saya tambahkan variabel namaAdmin ke dalam teks sapaan agar otomatis menyebut nama Admin-nya!
+        const pesan = `Assalamu'alaikum Admin ${namaAdmin}. Saya *${userData.nama_lengkap}* (Santri ${userData.tipe_santri || 'Muqim'}) baru saja memesan kitab dengan total *Rp ${totalHarga.toLocaleString('id-ID')}*. Mohon dicek di sistem ya.`;
+        
+        const waLink = `https://wa.me/${noWaPilihan}?text=${encodeURIComponent(pesan)}`;
         window.open(waLink, '_blank');
       }
       
       // Kosongkan keranjang setelah selesai
       setKeranjang([]); 
     });
-  };
+    };
 
   const batalkanPesanan = async (pesananId) => {
     const res = await Swal.fire({
