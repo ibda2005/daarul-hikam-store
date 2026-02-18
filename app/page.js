@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { cetakNota } from '../utils/generatePDF';
+import Swal from 'sweetalert2'; 
 
 export default function Dashboard() {
   const [daftarKitab, setDaftarKitab] = useState([]);
@@ -20,24 +21,20 @@ export default function Dashboard() {
       } else {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         setUserData(profile);
-        fetchKitab(profile.tipe_santri); // Bawa data status santri
+        fetchKitab(profile.tipe_santri); 
         fetchPesananSaya(session.user.id);
       }
     }
     checkUser();
   }, [router]);
 
-  // LOGIKA PEMBATASAN KITAB
   async function fetchKitab(tipeSantri) {
     const { data } = await supabase.from('kitab').select('*').order('id', { ascending: true });
-    
     if (data) {
       if (tipeSantri === 'Pasaran') {
-        // Jika Pasaran, HANYA TAMPILKAN kitab yang khusus_muqim nya false / kosong
-        const kitabBebas = data.filter(k => k.khusus_muqim === false || k.khusus_muqim === null);
-        setDaftarKitab(kitabBebas);
+        const kitabPasaran = data.filter(k => k.khusus_muqim === true);
+        setDaftarKitab(kitabPasaran);
       } else {
-        // Jika Muqim, tampilkan semua
         setDaftarKitab(data);
       }
     }
@@ -61,16 +58,40 @@ export default function Dashboard() {
     else setKeranjang(keranjang.filter(i => i.id !== id));
   };
 
-  const kosongkanKeranjang = () => {
-    if (confirm("Yakin ingin membatalkan semua pilihan kitab di keranjang?")) setKeranjang([]);
+  const kosongkanKeranjang = async () => {
+    const res = await Swal.fire({
+      title: 'Kosongkan Keranjang?',
+      text: "Semua pilihan kitab akan dihapus dari keranjang.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Ya, Kosongkan',
+      cancelButtonText: 'Batal'
+    });
+    if (res.isConfirmed) setKeranjang([]);
   };
 
   const totalHarga = keranjang.reduce((total, item) => total + (item.harga * item.jumlah), 0);
 
+  // ---- LOGIKA CHECKOUT & PILIH ADMIN WA ----
   const prosesPesanan = async () => {
-    if (keranjang.length === 0) return alert("Pilih kitab terlebih dahulu!");
-    if (!confirm("Apakah Anda sudah yakin dengan pesanan ini?")) return;
+    if (keranjang.length === 0) return Swal.fire('Kosong!', 'Pilih kitab terlebih dahulu!', 'warning');
     
+    const konfirmasi = await Swal.fire({
+      title: 'Proses Pesanan?',
+      text: "Pastikan kitab yang Anda pilih sudah benar.",
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#15803d',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Ya, Pesan Sekarang!',
+      cancelButtonText: 'Batal'
+    });
+
+    if (!konfirmasi.isConfirmed) return;
+    
+    // Simpan ke database
     const { error } = await supabase.from('pesanan').insert([{
       user_id: userData.id,
       total_harga: totalHarga,
@@ -78,82 +99,136 @@ export default function Dashboard() {
       detail_pesanan: keranjang
     }]);
 
-    if (error) return alert("Terjadi kesalahan: " + error.message);
+    if (error) return Swal.fire('Error', error.message, 'error');
 
     fetchPesananSaya(userData.id);
-    alert("✅ Pesanan berhasil dibuat!\n\nNota pemesanan sudah masuk ke sistem Admin. Silakan kabari Admin via WhatsApp.");
-
-    const noWaAdmin = "6281234567890"; // GANTI NOMOR WA ASLI
-    const pesan = `Assalamu'alaikum Admin. Saya *${userData.nama_lengkap}* (Santri ${userData.tipe_santri || 'Muqim'}) baru saja memesan kitab total *Rp ${totalHarga.toLocaleString('id-ID')}*. Mohon dicek.`;
-    const waLink = `https://wa.me/${noWaAdmin}?text=${encodeURIComponent(pesan)}`;
     
-    window.open(waLink, '_blank');
-    setKeranjang([]); 
+    // TAMPILKAN POP-UP PILIH ADMIN
+    Swal.fire({
+      title: 'Pesanan Berhasil! 🎉',
+      text: 'Nota sudah masuk sistem. Pilih Admin yang ingin Anda hubungi:',
+      icon: 'success',
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonColor: '#25D366', // Warna Hijau WA Terang
+      denyButtonColor: '#128C7E',    // Warna Hijau WA Gelap
+      cancelButtonColor: '#6b7280',  // Abu-abu
+      confirmButtonText: '💬 Admin 1',
+      denyButtonText: '💬 Admin 2',
+      cancelButtonText: 'Nanti Saja'
+    }).then((result) => {
+      let noWaPilihan = "";
+      
+      // CEK ADMIN MANA YANG DIPILIH
+      if (result.isConfirmed) {
+        noWaPilihan = "6285289031817"; // <--- GANTI NOMOR WA ADMIN 1 DI SINI
+        namaAdmin = "Bakul T3"
+      } else if (result.isDenied) {
+        noWaPilihan = "6285714251830"; // <--- GANTI NOMOR WA ADMIN 2 DI SINI
+        namaAdmin = "Joy T2"
+      }
+
+      // JIKA MEMILIH ADMIN 1 ATAU 2 (BUKAN 'NANTI SAJA')
+      if (noWaPilihan !== "") {
+        const pesan = `Assalamu'alaikum Admin. Saya *${userData.nama_lengkap}* (Santri ${userData.tipe_santri || 'Muqim'}) baru saja memesan kitab dengan total *Rp ${totalHarga.toLocaleString('id-ID')}*. Mohon dicek di sistem ya.`;
+        const waLink = `https://wa.me/${noWaPilihan}?text=${encodeURIComponent(pesan)}`,nama = namaAdmin;
+        window.open(waLink, '_blank');
+      }
+      
+      // Kosongkan keranjang setelah selesai
+      setKeranjang([]); 
+    });
   };
 
   const batalkanPesanan = async (pesananId) => {
-    if (!confirm("🚨 PENTING: Apakah yakin ingin membatalkan pesanan ini?")) return;
+    const res = await Swal.fire({
+      title: 'Batalkan Pesanan?',
+      text: "Aksi ini tidak dapat dibatalkan!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Ya, Batalkan!'
+    });
+
+    if (!res.isConfirmed) return;
+
     const { error } = await supabase.from('pesanan').delete().eq('id', pesananId);
     if (!error) {
-      alert("Pesanan berhasil dibatalkan.");
+      Swal.fire('Dibatalkan!', 'Pesanan Anda telah dibatalkan.', 'success');
       fetchPesananSaya(userData.id);
     }
   };
 
   const handleCetakNota = (pesanan, aksi) => {
-    if (!pesanan.detail_pesanan) return alert("Detail kitab tidak ditemukan.");
+    if (!pesanan.detail_pesanan) return Swal.fire('Maaf', 'Detail kitab tidak ditemukan.', 'error');
     const dataUser = { nama: userData.nama_lengkap, laqob: userData.laqob, tingkat: userData.tingkat };
     cetakNota(dataUser, pesanan.detail_pesanan, pesanan.total_harga, aksi);
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
+    const res = await Swal.fire({
+      title: 'Ingin Keluar?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      confirmButtonText: 'Ya, Logout'
+    });
+    if (res.isConfirmed) {
+      await supabase.auth.signOut();
+      router.push('/login');
+    }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-green-700">Memuat data...</div>;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12">
+      {/* HEADER */}
       <header className="bg-green-700 text-white p-6 shadow-md flex flex-col items-center relative">
-        <button onClick={handleLogout} className="absolute top-4 right-4 bg-red-600 px-4 py-2 rounded text-sm hover:bg-red-700 transition font-bold">Keluar</button>
+        <button onClick={handleLogout} className="absolute top-4 right-4 bg-red-600 px-4 py-2 rounded text-sm hover:bg-red-700 transition font-bold shadow-md">Keluar</button>
         <img src="/logo.jpeg" alt="Logo Daarul Hikam" className="w-24 h-24 mb-4 bg-white rounded-full p-1 object-cover" />
-        <h1 className="text-3xl font-bold text-center">Pemesanan Kitab Daarul Hikam</h1>
-        
-        {/* TAMPILKAN STATUS SANTRI DI HEADER */}
+        <h1 className="text-3xl font-bold text-center">Pemesanan Kitab Pondok Pesantren Daarul Hikam</h1>
+        <p className="mt-2 text-green-100 font-medium">Kp.Cibeureum Pasir Ds.Sukamekar Kec.Sukaraja Kab.Sukabumi</p>
         <div className="mt-3 bg-green-800 px-4 py-1.5 rounded-full border border-green-500 shadow-sm">
           <p className="text-green-100 font-medium text-sm">
-            Ahlan wa Sahlan, <span className="font-bold text-white">{userData?.nama_lengkap}</span> 
+            Ahlan wa Sahlan, <span className="font-bold text-white">{userData?.nama_lengkap}({userData?.laqob})</span> 
             <span className="text-yellow-400 font-bold ml-1">({userData?.tipe_santri || 'Muqim'})</span>
           </p>
         </div>
       </header>
 
       <div className="container mx-auto p-4 md:p-6 flex flex-col gap-8">
+        
         <div className="flex flex-col md:flex-row gap-8">
+          {/* KATALOG */}
           <div className="md:w-2/3">
             <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b-2 border-green-500 pb-2">Daftar Harga Kitab</h2>
+            
+            {userData?.tipe_santri === 'Pasaran' && (
+              <div className="mb-4 bg-blue-50 text-blue-800 p-3 rounded-lg text-sm font-semibold border border-blue-200">
+                ℹ️ Anda login sebagai Santri Pasaran. Menampilkan daftar kitab yang diizinkan untuk Anda.
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {daftarKitab.map((kitab) => (
-                <div key={kitab.id} className="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500 flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-gray-800">{kitab.nama_kitab}</h3>
-                    <p className="text-green-700 font-bold">Rp {kitab.harga.toLocaleString('id-ID')}</p>
+              {daftarKitab.length === 0 ? (
+                 <p className="text-gray-500 italic col-span-2">Belum ada kitab yang tersedia.</p>
+              ) : (
+                daftarKitab.map((kitab) => (
+                  <div key={kitab.id} className="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500 flex justify-between items-center hover:shadow-md transition">
+                    <div>
+                      <h3 className="font-bold text-gray-800">{kitab.nama_kitab}</h3>
+                      <p className="text-green-700 font-bold">Rp {kitab.harga.toLocaleString('id-ID')}</p>
+                    </div>
+                    <button onClick={() => tambahKeKeranjang(kitab)} className="bg-green-600 text-white w-10 h-10 flex items-center justify-center rounded-full hover:bg-green-700 transition font-bold text-xl shadow">+</button>
                   </div>
-                  <button onClick={() => tambahKeKeranjang(kitab)} className="bg-green-600 text-white w-10 h-10 flex items-center justify-center rounded-full hover:bg-green-700 transition font-bold text-xl shadow">+</button>
-                </div>
-              ))}
-              
-              {/* Info jika pasaran login */}
-              {userData?.tipe_santri === 'Pasaran' && (
-                <div className="col-span-full mt-4 bg-blue-50 text-blue-800 p-3 rounded-lg text-sm font-semibold border border-blue-200">
-                  ℹ️ Beberapa kitab khusus santri Muqim disembunyikan dari katalog Anda.
-                </div>
+                ))
               )}
             </div>
           </div>
 
-          {/* SISA KODE KERANJANG & RIWAYAT (Sama persis seperti sebelumnya) */}
+          {/* KERANJANG */}
           <div className="md:w-1/3 bg-white p-6 rounded-lg shadow h-fit border-t-4 border-green-700 sticky top-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Keranjang Saya</h2>
             {keranjang.length === 0 ? <p className="text-gray-500 italic font-medium">Belum ada kitab dipilih.</p> : (
@@ -176,6 +251,7 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* RIWAYAT PESANAN */}
         <div className="bg-white p-6 rounded-lg shadow border-t-4 border-blue-600 mt-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b-2 border-blue-500 pb-2">Riwayat Pesanan Saya</h2>
           {pesananSaya.length === 0 ? <p className="text-gray-500 italic">Anda belum memiliki riwayat pesanan.</p> : (
@@ -192,8 +268,8 @@ export default function Dashboard() {
                     </div>
                     <div className="flex flex-col gap-2 mt-2 border-t pt-3">
                       <div className="flex gap-2">
-                        <button onClick={() => handleCetakNota(p, 'view')} className="flex-1 bg-gray-100 text-gray-800 text-xs font-bold py-2 rounded border border-gray-300 hover:bg-gray-200 transition">👁️ Lihat Nota</button>
-                        <button onClick={() => handleCetakNota(p, 'download')} className="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded hover:bg-green-700 transition">⬇️ Download</button>
+                        <button onClick={() => handleCetakNota(p, 'view')} className="flex-1 bg-gray-100 text-gray-800 text-xs font-bold py-2 rounded border border-gray-300 hover:bg-gray-200 transition shadow-sm">👁️ Lihat Nota</button>
+                        <button onClick={() => handleCetakNota(p, 'download')} className="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded hover:bg-green-700 transition shadow-sm">⬇️ Download</button>
                       </div>
                       {bisaDibatalkan && <button onClick={() => batalkanPesanan(p.id)} className="w-full text-red-600 text-xs font-bold py-2 rounded border border-red-200 hover:bg-red-50 transition mt-1">❌ Batalkan Pesanan</button>}
                       {!bisaDibatalkan && p.status_pembayaran === 'Belum Lunas' && <p className="text-[10px] text-gray-400 text-center italic mt-1">Lewat dari 24 jam. Hubungi admin untuk membatalkan.</p>}
